@@ -1,0 +1,49 @@
+package wal
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"sync"
+)
+
+const walFilename = "wal.log"
+
+type LogEntry struct {
+	Command string
+	Key     string
+	Value   string
+}
+
+type Wal struct {
+	file *os.File
+	mu   sync.Mutex
+}
+
+func NewLogFile() (*Wal, error) {
+	file, err := os.OpenFile(walFilename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, os.ModeAppend)
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+	return &Wal{file: file, mu: sync.Mutex{}}, nil
+}
+
+func (wal *Wal) AppendEntry(entry LogEntry) error {
+	wal.mu.Lock()
+	defer wal.mu.Unlock()
+
+	data, err := json.Marshal(entry)
+	if err != nil {
+		return err
+	}
+	_, err = wal.file.Write(append(data, '\n'))
+	if err != nil {
+		return err
+	}
+	err = wal.file.Sync()
+	if err != nil {
+		return err
+	}
+	return nil
+}
