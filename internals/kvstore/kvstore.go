@@ -16,16 +16,19 @@ type KVStore struct {
 
 var Tombstone = "__<deleted>__"
 
-func NewKVStore() *KVStore {
+func NewKVStore(logPath string) *KVStore {
+	w, err := wal.NewLogFile(logPath)
+	if err != nil {
+		panic(err) // or handle the error as appropriate
+	}
 	return &KVStore{
 		list: skiplist.New(skiplist.String), // assumes string keys
 		mu:   sync.RWMutex{},
+		wal:  w,
 	}
 }
 
 func (kv *KVStore) Set(key string, value string) error {
-	// Step 1: Append the key/value pair to the WAL (on disk).
-	// Step 2: Add the key/value to the memtable (in RAM).
 	kv.mu.Lock()
 	defer kv.mu.Unlock()
 	entry := wal.LogEntry{
@@ -64,4 +67,5 @@ func (kv *KVStore) Delete(key string) error {
 		return err
 	}
 	kv.list.Set(key, Tombstone)
+	return nil
 }

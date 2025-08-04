@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sync"
 )
 
@@ -20,8 +21,12 @@ type Wal struct {
 	mu   sync.Mutex
 }
 
-func NewLogFile() (*Wal, error) {
-	file, err := os.OpenFile(walFilename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, os.ModeAppend)
+func NewLogFile(path string) (*Wal, error) {
+	if path == "" {
+		path = "."
+	}
+	fullPath := filepath.Join(path, walFilename)
+	file, err := os.OpenFile(fullPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		fmt.Println(err)
 		return nil, err
