@@ -7,7 +7,10 @@ import (
 	"sync"
 
 	"github.com/huandu/skiplist"
+	"github.com/ian-kent/go-log/log"
 )
+
+const maxMemory = 10
 
 type KVStore struct {
 	list *skiplist.SkipList
@@ -55,6 +58,12 @@ func (kv *KVStore) Set(key string, value string) error {
 	err := kv.wal.AppendEntry(entry)
 	if err != nil {
 		return err
+	}
+	// TODO: Before writing to the memtable, check its size, if its
+	// above a threshold, we want to flush it.
+	if kv.list.Len() > maxMemory {
+		// TODO: Flush the wal.
+		log.Info("Flushing the memtable to an SST table.")
 	}
 	kv.list.Set(key, value)
 	return err
