@@ -9,7 +9,7 @@ import (
 
 func main() {
 	mux := http.NewServeMux()
-	handlers.Store = kvstore.NewKVStore()
+	handlers.Store = kvstore.NewKVStore(".")
 	http.HandleFunc("GET /store", handlers.GetItem)
 	http.HandleFunc("POST /store", handlers.CreateItem)
 	http.HandleFunc("DELETE /store", handlers.DeleteItem)

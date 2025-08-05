@@ -2,6 +2,7 @@ package kvstore
 
 import (
 	"errors"
+	"lsm-kv/internals/utils"
 	"lsm-kv/internals/wal"
 	"sync"
 
@@ -21,11 +22,26 @@ func NewKVStore(logPath string) *KVStore {
 	if err != nil {
 		panic(err) // or handle the error as appropriate
 	}
-	return &KVStore{
+	kv := &KVStore{
 		list: skiplist.New(skiplist.String), // assumes string keys
 		mu:   sync.RWMutex{},
 		wal:  w,
 	}
+
+	// If the WAL contains information, add it to our log.
+	entries, err := utils.ReadWAL(logPath)
+	if err != nil {
+		panic(err)
+	}
+	for _, entry := range entries {
+		switch entry.Command {
+		case "SET":
+			kv.list.Set(entry.Key, entry.Value)
+		case "DELETE":
+			kv.list.Set(entry.Key, Tombstone)
+		}
+	}
+	return kv
 }
 
 func (kv *KVStore) Set(key string, value string) error {

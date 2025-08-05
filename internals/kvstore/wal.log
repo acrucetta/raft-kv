@@ -2,3 +2,6 @@
 {"Command":"DELETE","Key":"foo","Value":"__\u003cdeleted\u003e__"}
 {"Command":"SET","Key":"foo","Value":"bar"}
 {"Command":"DELETE","Key":"foo","Value":"__\u003cdeleted\u003e__"}
+{"Command":"SET","Key":"foo","Value":"bar"}
+{"Command":"SET","Key":"foo","Value":"bar"}
+{"Command":"DELETE","Key":"foo","Value":"__\u003cdeleted\u003e__"}

@@ -8,7 +8,7 @@ import (
 	"sync"
 )
 
-const walFilename = "wal.log"
+const WalFilename = "wal.log"
 
 type LogEntry struct {
 	Command string
@@ -17,7 +17,7 @@ type LogEntry struct {
 }
 
 type Wal struct {
-	file *os.File
+	File *os.File
 	mu   sync.Mutex
 }
 
@@ -25,13 +25,13 @@ func NewLogFile(path string) (*Wal, error) {
 	if path == "" {
 		path = "."
 	}
-	fullPath := filepath.Join(path, walFilename)
+	fullPath := filepath.Join(path, WalFilename)
 	file, err := os.OpenFile(fullPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		fmt.Println(err)
 		return nil, err
 	}
-	return &Wal{file: file, mu: sync.Mutex{}}, nil
+	return &Wal{File: file, mu: sync.Mutex{}}, nil
 }
 
 func (wal *Wal) AppendEntry(entry LogEntry) error {
@@ -42,11 +42,11 @@ func (wal *Wal) AppendEntry(entry LogEntry) error {
 	if err != nil {
 		return err
 	}
-	_, err = wal.file.Write(append(data, '\n'))
+	_, err = wal.File.Write(append(data, '\n'))
 	if err != nil {
 		return err
 	}
-	err = wal.file.Sync()
+	err = wal.File.Sync()
 	if err != nil {
 		return err
 	}
