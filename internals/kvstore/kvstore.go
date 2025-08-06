@@ -2,12 +2,13 @@ package kvstore
 
 import (
 	"errors"
+	"log"
+	"lsm-kv/internals/sstable"
 	"lsm-kv/internals/utils"
 	"lsm-kv/internals/wal"
 	"sync"
 
 	"github.com/huandu/skiplist"
-	"github.com/ian-kent/go-log/log"
 )
 
 const maxMemory = 10
@@ -59,11 +60,28 @@ func (kv *KVStore) Set(key string, value string) error {
 	if err != nil {
 		return err
 	}
-	// TODO: Before writing to the memtable, check its size, if its
+
+	// Before writing to the memtable, check its size, if its
 	// above a threshold, we want to flush it.
 	if kv.list.Len() > maxMemory {
-		// TODO: Flush the wal.
-		log.Info("Flushing the memtable to an SST table.")
+		// Flush current memtable to the database
+		filename, err := sstable.FlushToSSTable(kv.list)
+		if err != nil {
+			log.Printf("Error flushing to SST: %v", err)
+			return err
+		}
+		log.Printf("Flushing the memtable to an SST table: %v", filename)
+		// Now we delete the existing WAL (or truncate it)
+		err = kv.wal.File.Truncate(0)
+		if err != nil {
+			log.Printf("Error truncating wal: %v", err)
+			return err
+		}
+		_, err = kv.wal.File.Seek(0, 0)
+		if err != nil {
+			log.Printf("Error moving the seek to 0 in the wal: %v", err)
+			return err
+		}
 	}
 	kv.list.Set(key, value)
 	return err
