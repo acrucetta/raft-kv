@@ -2,6 +2,7 @@ package sstable
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,6 +11,8 @@ import (
 	"github.com/huandu/skiplist"
 )
 
+var ErrKeyNotFound = errors.New("kv: key not found")
+
 type SSTEntry struct {
 	KeyLength   int
 	Key         string
@@ -17,12 +20,12 @@ type SSTEntry struct {
 	Value       string
 }
 
-const sstDefaultPath = "."
+const SstDefaultPath = "../../sst"
 
 func FlushToSSTable(list *skiplist.SkipList) (string, error) {
 	ts := time.Now().UTC().Format("2006_01_02_15:04:05")
 	filename := fmt.Sprintf("sst_%v.db", ts)
-	fullPath := filepath.Join(sstDefaultPath, filename)
+	fullPath := filepath.Join(SstDefaultPath, filename)
 	file, err := os.OpenFile(fullPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		fmt.Println(err)
@@ -39,4 +42,9 @@ func FlushToSSTable(list *skiplist.SkipList) (string, error) {
 		file.Write(val)
 	}
 	return filename, nil
+}
+
+func GetKey(entry *os.DirEntry) (string, error) {
+	// TODO: To implement.
+	return "", nil
 }

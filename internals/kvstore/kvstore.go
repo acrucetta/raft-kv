@@ -2,10 +2,14 @@ package kvstore
 
 import (
 	"errors"
+	"fmt"
+	"io/fs"
 	"log"
 	"lsm-kv/internals/sstable"
 	"lsm-kv/internals/utils"
 	"lsm-kv/internals/wal"
+	"os"
+	"sort"
 	"sync"
 
 	"github.com/huandu/skiplist"
@@ -13,13 +17,13 @@ import (
 
 const maxMemory = 10
 
+var Tombstone = "__<deleted>__"
+
 type KVStore struct {
 	list *skiplist.SkipList
 	mu   sync.RWMutex
 	wal  *wal.Wal
 }
-
-var Tombstone = "__<deleted>__"
 
 func NewKVStore(logPath string) *KVStore {
 	w, err := wal.NewLogFile(logPath)
@@ -87,14 +91,75 @@ func (kv *KVStore) Set(key string, value string) error {
 	return err
 }
 
+type EntryWithTimestamp struct {
+	DirEntry  fs.DirEntry
+	Timestamp int64
+}
+
+// Extracts the timestamp from the sst files. E.g., sst_2025_08_07_16:28:10.db
+func parseTimestamp(name string) (int64, error) {
+	// TODO: To implement.
+	return 0, nil
+}
+
+func withTimestamps(entries []os.DirEntry) ([]EntryWithTimestamp, error) {
+	out := make([]EntryWithTimestamp, 0)
+	for _, entry := range entries {
+		ts, err := parseTimestamp(entry.Name())
+		if err != nil {
+			log.Printf("Error parsing the timestamp: %v", err)
+			return out, err
+		}
+		out = append(out, EntryWithTimestamp{entry, ts})
+	}
+
+	return out, nil
+}
+
+func lookupSSTables(key string) (string, error) {
+	entries, err := os.ReadDir(sstable.SstDefaultPath)
+	if err != nil {
+		return "", fmt.Errorf("read sst dir: %w", err)
+	}
+
+	// Get all the available SST tables
+	// Try to fetch the latest entry from newest to oldest.
+	files, err := withTimestamps(entries)
+	if err != nil {
+		return "", err
+	}
+
+	// Sort the files
+	sort.Slice(files, func(i, j int) bool {
+		return files[i].Timestamp < files[j].Timestamp
+	})
+
+	// Find the key
+	for _, f := range files {
+		val, err := sstable.GetKey(&f.DirEntry)
+		switch {
+		case err == nil:
+			return val, nil
+		case errors.Is(err, sstable.ErrKeyNotFound):
+			continue
+		default:
+			return "", fmt.Errorf("search %s: %w", f.DirEntry.Name(), err)
+		}
+	}
+	return "", sstable.ErrKeyNotFound
+}
+
 func (kv *KVStore) Get(key string) (string, error) {
 	kv.mu.RLock()
 	defer kv.mu.RUnlock()
 	v, ok := kv.list.GetValue(key)
-	if !ok || v == Tombstone {
-		return "", errors.New("key not found")
+
+	// First check the Memtable.
+	if ok && v != Tombstone {
+		return v.(string), nil
 	}
-	return v.(string), nil
+	// Second, search SST tables (from newest to oldest)
+	return lookupSSTables(key)
 }
 
 func (kv *KVStore) Delete(key string) error {
