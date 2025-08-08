@@ -1,15 +1,10 @@
 package kvstore
 
 import (
-	"errors"
-	"fmt"
-	"io/fs"
 	"log"
 	"lsm-kv/internals/sstable"
 	"lsm-kv/internals/utils"
 	"lsm-kv/internals/wal"
-	"os"
-	"sort"
 	"sync"
 
 	"github.com/huandu/skiplist"
@@ -91,58 +86,6 @@ func (kv *KVStore) Set(key string, value string) error {
 	return err
 }
 
-type EntryWithTimestamp struct {
-	DirEntry  fs.DirEntry
-	Timestamp int64
-}
-
-func withTimestamps(entries []os.DirEntry) ([]EntryWithTimestamp, error) {
-	out := make([]EntryWithTimestamp, 0)
-	for _, entry := range entries {
-		ts, err := utils.ParseTimestamp(entry.Name())
-		if err != nil {
-			log.Printf("Error parsing the timestamp: %v", err)
-			return out, err
-		}
-		out = append(out, EntryWithTimestamp{entry, ts})
-	}
-	return out, nil
-}
-
-func lookupSSTables(key string) (string, error) {
-	entries, err := os.ReadDir(sstable.SstDefaultPath)
-	if err != nil {
-		return "", fmt.Errorf("read sst dir: %w", err)
-	}
-
-	// Get all the available SST tables
-	// Try to fetch the latest entry from newest to oldest.
-	files, err := withTimestamps(entries)
-	if err != nil {
-		return "", err
-	}
-
-	// Sort the files
-	sort.Slice(files, func(i, j int) bool {
-		return files[i].Timestamp < files[j].Timestamp
-	})
-
-	// Find the key
-	for _, f := range files {
-		val, found, err := sstable.FetchKeyValueInSSTable(f.DirEntry.Name(), key)
-		if found {
-			return val, nil
-		}
-		if errors.Is(err, sstable.ErrKeyNotFound) {
-			continue
-		}
-		if err != nil {
-			return "", fmt.Errorf("search %s: %w", f.DirEntry.Name(), err)
-		}
-	}
-	return "", sstable.ErrKeyNotFound
-}
-
 func (kv *KVStore) Get(key string) (string, error) {
 	kv.mu.RLock()
 	defer kv.mu.RUnlock()
@@ -153,7 +96,7 @@ func (kv *KVStore) Get(key string) (string, error) {
 		return v.(string), nil
 	}
 	// Second, search SST tables (from newest to oldest)
-	return lookupSSTables(key)
+	return sstable.GetKeyFromSSTables(key)
 }
 
 func (kv *KVStore) Delete(key string) error {

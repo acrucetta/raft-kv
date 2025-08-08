@@ -5,8 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
+	"log"
+	"lsm-kv/internals/utils"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 
 	"github.com/huandu/skiplist"
@@ -19,6 +23,11 @@ type SSTEntry struct {
 	Key         string
 	ValueLength int
 	Value       string
+}
+
+type EntryWithTimestamp struct {
+	DirEntry  fs.DirEntry
+	Timestamp int64
 }
 
 const SstDefaultPath = "../../sst"
@@ -92,4 +101,51 @@ func FetchKeyValueInSSTable(fileName string, searchKey string) (string, bool, er
 			return value, true, nil
 		}
 	}
+}
+
+func withTimestamps(entries []os.DirEntry) ([]EntryWithTimestamp, error) {
+	out := make([]EntryWithTimestamp, 0)
+	for _, entry := range entries {
+		ts, err := utils.ParseTimestamp(entry.Name())
+		if err != nil {
+			log.Printf("Error parsing the timestamp: %v", err)
+			return out, err
+		}
+		out = append(out, EntryWithTimestamp{entry, ts})
+	}
+	return out, nil
+}
+
+func GetKeyFromSSTables(key string) (string, error) {
+	entries, err := os.ReadDir(SstDefaultPath)
+	if err != nil {
+		return "", fmt.Errorf("read sst dir: %w", err)
+	}
+
+	// Get all the available SST tables
+	// Try to fetch the latest entry from newest to oldest.
+	files, err := withTimestamps(entries)
+	if err != nil {
+		return "", err
+	}
+
+	// Sort the files
+	sort.Slice(files, func(i, j int) bool {
+		return files[i].Timestamp < files[j].Timestamp
+	})
+
+	// Find the key
+	for _, f := range files {
+		val, found, err := FetchKeyValueInSSTable(f.DirEntry.Name(), key)
+		if found {
+			return val, nil
+		}
+		if errors.Is(err, ErrKeyNotFound) {
+			continue
+		}
+		if err != nil {
+			return "", fmt.Errorf("search %s: %w", f.DirEntry.Name(), err)
+		}
+	}
+	return "", ErrKeyNotFound
 }

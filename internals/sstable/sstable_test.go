@@ -38,4 +38,9 @@ func TestFindKeyInSSTable(t *testing.T) {
 	if value != "bar" {
 		t.Fatalf("Wrong value found: %v", value)
 	}
+	err = os.Remove(filename)
+	if err != nil {
+		// handle the error, e.g. file does not exist or permission denied
+		log.Printf("Failed to delete file: %v", err)
+	}
 }
