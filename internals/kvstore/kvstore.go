@@ -129,7 +129,7 @@ func lookupSSTables(key string) (string, error) {
 
 	// Find the key
 	for _, f := range files {
-		val, found, err := sstable.FindKeyInSSTable(f.DirEntry, key)
+		val, found, err := sstable.FetchKeyValueInSSTable(f.DirEntry.Name(), key)
 		if found {
 			return val, nil
 		}

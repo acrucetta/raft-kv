@@ -34,7 +34,7 @@ func FlushToSSTable(list *skiplist.SkipList) (string, error) {
 	}
 	for elem := list.Front(); elem != nil; elem = elem.Next() {
 		key := []byte(elem.Key().(string))
-		val := []byte(elem.Key().(string))
+		val := []byte(elem.Value.(string))
 
 		// Format: [key len][key][val len][val]
 		binary.Write(file, binary.LittleEndian, int32(len(key)))
@@ -73,11 +73,8 @@ func ReadSSTTableEntry(file *os.File) (key string, value string, err error) {
 	return string(keyBytes), string(valueBytes), nil
 }
 
-func FindKeyInSSTable(entry os.DirEntry, searchKey string) (string, bool, error) {
-	// TODO: To implement.
-	// We have a Byte file, we need to open it, then read
-	// the contents of it to find the key/value pair
-	filePath := filepath.Join(SstDefaultPath, entry.Name())
+func FetchKeyValueInSSTable(fileName string, searchKey string) (string, bool, error) {
+	filePath := filepath.Join(SstDefaultPath, fileName)
 	file, err := os.Open(filePath)
 	if err != nil {
 		return "", false, fmt.Errorf("could not open SST file: %w", err)
