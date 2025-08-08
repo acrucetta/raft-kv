@@ -112,5 +112,9 @@ func (kv *KVStore) Delete(key string) error {
 		return err
 	}
 	kv.list.Set(key, Tombstone)
+	sstable.WriteSSTableEntry(key, Tombstone)
+	if err != nil {
+		return err
+	}
 	return nil
 }

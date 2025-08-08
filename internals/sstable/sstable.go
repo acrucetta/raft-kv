@@ -54,6 +54,32 @@ func FlushToSSTable(list *skiplist.SkipList) (string, error) {
 	return filename, nil
 }
 
+// Finds the latest SSTable and writes an entry to it
+// at the end of the file.
+func WriteSSTableEntry(key string, value string) error {
+	files, err := getSortedSSTables()
+	if err != nil {
+		return err
+	}
+	f := files[0]
+	path := filepath.Join(SstDefaultPath, f.DirEntry.Name())
+	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	keyBytes := []byte(key)
+	valueBytes := []byte(value)
+
+	// Format: [key len][key][val len][val]
+	binary.Write(file, binary.LittleEndian, int32(len(key)))
+	file.Write(keyBytes)
+	binary.Write(file, binary.LittleEndian, int32(len(value)))
+	file.Write(valueBytes)
+	return nil
+}
+
 func ReadSSTTableEntry(file *os.File) (key string, value string, err error) {
 	// Read Key Len
 	var keyLen int32
@@ -116,25 +142,32 @@ func withTimestamps(entries []os.DirEntry) ([]EntryWithTimestamp, error) {
 	return out, nil
 }
 
-func GetKeyFromSSTables(key string) (string, error) {
-	entries, err := os.ReadDir(SstDefaultPath)
+func getSortedSSTables() ([]EntryWithTimestamp, error) {
+	dirEntries, err := os.ReadDir(SstDefaultPath)
 	if err != nil {
-		return "", fmt.Errorf("read sst dir: %w", err)
+		return nil, fmt.Errorf("read sst dir: %w", err)
 	}
 
 	// Get all the available SST tables
 	// Try to fetch the latest entry from newest to oldest.
-	files, err := withTimestamps(entries)
+	files, err := withTimestamps(dirEntries)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	// Sort the files
 	sort.Slice(files, func(i, j int) bool {
 		return files[i].Timestamp < files[j].Timestamp
 	})
+	return files, nil
+}
 
+func GetKeyFromSSTables(key string) (string, error) {
 	// Find the key
+	files, err := getSortedSSTables()
+	if err != nil {
+		return "", err
+	}
 	for _, f := range files {
 		val, found, err := FetchKeyValueInSSTable(f.DirEntry.Name(), key)
 		if found {
