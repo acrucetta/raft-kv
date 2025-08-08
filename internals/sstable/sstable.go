@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"time"
@@ -44,7 +45,54 @@ func FlushToSSTable(list *skiplist.SkipList) (string, error) {
 	return filename, nil
 }
 
-func GetKey(entry *os.DirEntry) (string, error) {
+func ReadSSTTableEntry(file *os.File) (key string, value string, err error) {
+	// Read Key Len
+	var keyLen int32
+	err = binary.Read(file, binary.LittleEndian, &keyLen)
+	if err != nil {
+		return "", "", err
+	}
+	// Read Key
+	keyBytes := make([]byte, keyLen)
+	err = binary.Read(file, binary.LittleEndian, &keyBytes)
+	if err != nil {
+		return "", "", err
+	}
+	// Read Value Len
+	var valueLen int32
+	err = binary.Read(file, binary.LittleEndian, &valueLen)
+	if err != nil {
+		return "", "", err
+	}
+	// Read Value
+	valueBytes := make([]byte, valueLen)
+	err = binary.Read(file, binary.LittleEndian, &valueBytes)
+	if err != nil {
+		return "", "", err
+	}
+	return string(keyBytes), string(valueBytes), nil
+}
+
+func FindKeyInSSTable(entry os.DirEntry, searchKey string) (string, bool, error) {
 	// TODO: To implement.
-	return "", nil
+	// We have a Byte file, we need to open it, then read
+	// the contents of it to find the key/value pair
+	filePath := filepath.Join(SstDefaultPath, entry.Name())
+	file, err := os.Open(filePath)
+	if err != nil {
+		return "", false, fmt.Errorf("could not open SST file: %w", err)
+	}
+	defer file.Close()
+	for {
+		key, value, err := ReadSSTTableEntry(file)
+		if err == io.EOF {
+			return "", false, ErrKeyNotFound
+		}
+		if err != nil {
+			return "", false, err
+		}
+		if key == searchKey {
+			return value, true, nil
+		}
+	}
 }

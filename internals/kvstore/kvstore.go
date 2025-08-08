@@ -96,23 +96,16 @@ type EntryWithTimestamp struct {
 	Timestamp int64
 }
 
-// Extracts the timestamp from the sst files. E.g., sst_2025_08_07_16:28:10.db
-func parseTimestamp(name string) (int64, error) {
-	// TODO: To implement.
-	return 0, nil
-}
-
 func withTimestamps(entries []os.DirEntry) ([]EntryWithTimestamp, error) {
 	out := make([]EntryWithTimestamp, 0)
 	for _, entry := range entries {
-		ts, err := parseTimestamp(entry.Name())
+		ts, err := utils.ParseTimestamp(entry.Name())
 		if err != nil {
 			log.Printf("Error parsing the timestamp: %v", err)
 			return out, err
 		}
 		out = append(out, EntryWithTimestamp{entry, ts})
 	}
-
 	return out, nil
 }
 
@@ -136,13 +129,14 @@ func lookupSSTables(key string) (string, error) {
 
 	// Find the key
 	for _, f := range files {
-		val, err := sstable.GetKey(&f.DirEntry)
-		switch {
-		case err == nil:
+		val, found, err := sstable.FindKeyInSSTable(f.DirEntry, key)
+		if found {
 			return val, nil
-		case errors.Is(err, sstable.ErrKeyNotFound):
+		}
+		if errors.Is(err, sstable.ErrKeyNotFound) {
 			continue
-		default:
+		}
+		if err != nil {
 			return "", fmt.Errorf("search %s: %w", f.DirEntry.Name(), err)
 		}
 	}
